@@ -16,27 +16,27 @@ void main() {
   );
 }
 
+final GoRouter _router = GoRouter(
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const HomeScreen(),
+    ),
+    GoRoute(
+      path: '/quotation',
+      builder: (context, state) {
+        final id = state.uri.queryParameters['id'];
+        return QuotationScreen(quotationId: id != null ? int.parse(id) : null);
+      },
+    ),
+  ],
+);
+
 class CLCQuoteApp extends StatelessWidget {
   const CLCQuoteApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final GoRouter _router = GoRouter(
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) => const HomeScreen(),
-        ),
-        GoRoute(
-          path: '/quotation',
-          builder: (context, state) {
-            final id = state.uri.queryParameters['id'];
-            return QuotationScreen(quotationId: id != null ? int.parse(id) : null);
-          },
-        ),
-      ],
-    );
-
     return MaterialApp.router(
       title: 'CLC Quote Maker',
       theme: ThemeData(

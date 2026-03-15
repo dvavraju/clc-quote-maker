@@ -25,9 +25,8 @@ class QuotationProvider with ChangeNotifier {
   // --- Form State for New/Edit Quotation ---
   String clientName = '';
   String totalAmount = '';
-  
-  // Maps to store selections
-  // Key: Event Name
+
+  // Key: Event Name → (date, services set)
   final Map<String, ({String? date, Set<String> services})> selectedEvents = {};
   final Set<String> selectedDeliverables = {};
 
@@ -36,7 +35,6 @@ class QuotationProvider with ChangeNotifier {
     totalAmount = '';
     selectedEvents.clear();
     selectedDeliverables.clear();
-    // Default deliverables (all pre-selected as per prompt)
     selectedDeliverables.addAll(defaultDeliverables);
     notifyListeners();
   }
@@ -45,26 +43,29 @@ class QuotationProvider with ChangeNotifier {
     if (selectedEvents.containsKey(eventName)) {
       selectedEvents.remove(eventName);
     } else {
-      selectedEvents[eventName] = (date: null, services: {});
+      selectedEvents[eventName] = (date: null, services: <String>{});
     }
     notifyListeners();
   }
 
   void updateEventDate(String eventName, String? date) {
     if (selectedEvents.containsKey(eventName)) {
-      selectedEvents[eventName] = (date: date, services: selectedEvents[eventName]!.services);
+      final current = selectedEvents[eventName]!;
+      selectedEvents[eventName] = (date: date, services: current.services);
       notifyListeners();
     }
   }
 
   void toggleService(String eventName, String serviceName) {
     if (selectedEvents.containsKey(eventName)) {
-      final services = selectedEvents[eventName]!.services;
-      if (services.contains(serviceName)) {
-        services.remove(serviceName);
+      final current = selectedEvents[eventName]!;
+      final updatedServices = Set<String>.from(current.services);
+      if (updatedServices.contains(serviceName)) {
+        updatedServices.remove(serviceName);
       } else {
-        services.add(serviceName);
+        updatedServices.add(serviceName);
       }
+      selectedEvents[eventName] = (date: current.date, services: updatedServices);
       notifyListeners();
     }
   }
@@ -87,24 +88,23 @@ class QuotationProvider with ChangeNotifier {
     'Pre Wedding Edited Photos',
     'Save the Date Video',
     'Engagement Album',
-    '12x36 Wedding Album - 2 Copies'
+    '12x36 Wedding Album - 2 Copies',
   ];
 
   String generateWhatsAppMessage() {
-    StringBuffer buffer = StringBuffer();
+    final buffer = StringBuffer();
     buffer.writeln('*The Story Book by CLC*');
     buffer.writeln();
 
-    // Events
     for (var eventName in eventList) {
       if (selectedEvents.containsKey(eventName)) {
         final data = selectedEvents[eventName]!;
-        if (data.date != null && data.date!.trim().isNotEmpty) {
-          buffer.writeln('*$eventName - ${data.date!.trim()}*');
+        final trimmedDate = data.date?.trim();
+        if (trimmedDate != null && trimmedDate.isNotEmpty) {
+          buffer.writeln('*$eventName - $trimmedDate*');
         } else {
           buffer.writeln('*$eventName*');
         }
-
         for (var service in serviceList) {
           if (data.services.contains(service)) {
             buffer.writeln('- $service');
@@ -114,7 +114,6 @@ class QuotationProvider with ChangeNotifier {
       }
     }
 
-    // Deliverables
     buffer.writeln('*Deliveries:*');
     int count = 1;
     for (var deliverable in defaultDeliverables) {
@@ -125,11 +124,8 @@ class QuotationProvider with ChangeNotifier {
     }
     buffer.writeln();
 
-    // Total Amount
     buffer.writeln('*Total Package: $totalAmount/-*');
     buffer.writeln();
-
-    // Fixed terms
     buffer.writeln('30% On Booking Confirmation');
     buffer.writeln('50% After Wedding');
     buffer.writeln('20% On Album Delivery');
@@ -153,32 +149,31 @@ class QuotationProvider with ChangeNotifier {
   Future<void> saveQuotation({int? id}) async {
     final db = await DatabaseHelper.instance.database;
     final now = DateTime.now().millisecondsSinceEpoch;
-    
-    final quotationMap = {
-      'client_name': clientName,
-      'total_amount': totalAmount,
-      'updated_at': now,
-    };
 
     int qId;
     if (id == null) {
-      quotationMap['created_at'] = now;
-      qId = await db.insert('quotations', quotationMap);
+      qId = await db.insert('quotations', {
+        'client_name': clientName,
+        'total_amount': totalAmount,
+        'created_at': now,
+        'updated_at': now,
+      });
     } else {
       qId = id;
       await db.update(
         'quotations',
-        quotationMap,
+        {
+          'client_name': clientName,
+          'total_amount': totalAmount,
+          'updated_at': now,
+        },
         where: 'id = ?',
         whereArgs: [id],
       );
-      // Delete old events and deliverables to re-insert fresh ones
-      // CASCADE delete on events will also delete services
       await db.delete('quotation_events', where: 'quotation_id = ?', whereArgs: [id]);
       await db.delete('quotation_deliverables', where: 'quotation_id = ?', whereArgs: [id]);
     }
 
-    // Save Events & Services
     int eventOrder = 0;
     for (var eventName in eventList) {
       if (selectedEvents.containsKey(eventName)) {
@@ -189,7 +184,6 @@ class QuotationProvider with ChangeNotifier {
           'event_date': data.date,
           'display_order': eventOrder++,
         });
-
         for (var service in data.services) {
           await db.insert('event_services', {
             'event_id': eventId,
@@ -199,7 +193,6 @@ class QuotationProvider with ChangeNotifier {
       }
     }
 
-    // Save Deliverables
     int dOrder = 0;
     for (var dName in defaultDeliverables) {
       await db.insert('quotation_deliverables', {
