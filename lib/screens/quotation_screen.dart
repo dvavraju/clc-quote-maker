@@ -293,7 +293,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
                       controller: _amountController,
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
-                        placeholder: 'e.g. 3,10,000',
+                        hintText: 'e.g. 3,10,000',
                         filled: true,
                         fillColor: Colors.grey[100],
                         border: OutlineInputBorder(
