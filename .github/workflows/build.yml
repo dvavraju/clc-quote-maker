@@ -26,19 +26,43 @@ jobs:
           flutter-version: '3.27.4'
           cache: true
 
-      - name: Write local.properties
+      # Let Flutter generate a perfectly-structured Android project
+      - name: Scaffold clean Flutter project
         run: |
-          echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
-          echo "sdk.dir=$ANDROID_SDK_ROOT" >> android/local.properties
+          flutter create \
+            --org com.thestorybookbyclc \
+            --project-name quotmaker \
+            --platforms android \
+            --no-pub \
+            flutter_build
+
+      # Overlay our app's source code on top of the scaffold
+      - name: Overlay app source code
+        run: |
+          rm -rf flutter_build/lib
+          cp -r lib        flutter_build/lib
+          cp -r assets     flutter_build/assets
+          cp pubspec.yaml  flutter_build/pubspec.yaml
+
+          # Overlay our custom CLC logo icons into every density folder
+          for density in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
+            src="android/app/src/main/res/$density"
+            dst="flutter_build/android/app/src/main/res/$density"
+            if [ -d "$src" ]; then
+              cp -f "$src"/*.png "$dst"/
+            fi
+          done
 
       - name: Install dependencies
+        working-directory: flutter_build
         run: flutter pub get
 
       - name: Build APK
+        working-directory: flutter_build
         run: flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: CLC-Quote-Maker
+          path: flutter_build/build/app/outputs/flutter-apk/app-release.apk
