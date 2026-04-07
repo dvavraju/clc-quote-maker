@@ -22,20 +22,22 @@ class QuotationProvider with ChangeNotifier {
     await loadQuotations();
   }
 
-  // --- Form State for New/Edit Quotation ---
+  // --- Form State ---
   String clientName = '';
   String totalAmount = '';
 
-  // Key: Event Name → (date, services set)
+  // Map preserves insertion order = SELECTION ORDER for events
   final Map<String, ({String? date, Set<String> services})> selectedEvents = {};
-  final Set<String> selectedDeliverables = {};
+
+  // List preserves insertion order = SELECTION ORDER for deliverables
+  final List<String> selectedDeliverables = [];
 
   void resetForm() {
     clientName = '';
     totalAmount = '';
     selectedEvents.clear();
     selectedDeliverables.clear();
-    selectedDeliverables.addAll(defaultDeliverables);
+    // No pre-population — user selects what they need
     notifyListeners();
   }
 
@@ -79,48 +81,52 @@ class QuotationProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  final List<String> defaultDeliverables = [
-    'Engagement Teaser - 4K',
-    'Cinematic Wedding Film - 4K',
+  // ── Full deliverables list (v1.2) ──────────────────────────────
+  static const List<String> allDeliverables = [
+    'Cinematic Wedding Film 4K',
+    'Traditional Edited Video including all events 4K',
     'Main Highlights Edited Photos',
-    'Traditional Edited Video including all events - 4K',
-    'Pre Wedding Edited Video Song',
+    'Pre Wedding Video Song 4K',
     'Pre Wedding Edited Photos',
-    'Save the Date Video',
-    'Engagement Album',
-    '12x36 Wedding Album - 2 Copies',
+    'Save the Date Video 4K',
+    '12x36 Wedding Album 2 Copies (60 Sheets Each)',
+    '15x24 Album 25 Sheets',
+    '12x36 Premium Album 2 Copies (60 Sheets Each)',
+    'Engagement Teaser 4K',
+    'Wedding Teaser 4K',
+    'Reception Teaser 4K',
+    'Haldi Teaser 4K',
+    'Sangeet Teaser 4K',
+    'Birthday Teaser 4K',
   ];
 
+  // ── WhatsApp Message Generator ─────────────────────────────────
   String generateWhatsAppMessage() {
     final buffer = StringBuffer();
     buffer.writeln('*The Story Book by CLC*');
     buffer.writeln();
 
-    for (var eventName in eventList) {
-      if (selectedEvents.containsKey(eventName)) {
-        final data = selectedEvents[eventName]!;
-        final trimmedDate = data.date?.trim();
-        if (trimmedDate != null && trimmedDate.isNotEmpty) {
-          buffer.writeln('*$eventName - $trimmedDate*');
-        } else {
-          buffer.writeln('*$eventName*');
-        }
-        for (var service in serviceList) {
-          if (data.services.contains(service)) {
-            buffer.writeln('- $service');
-          }
-        }
-        buffer.writeln();
+    // Events in SELECTION ORDER (Map preserves insertion order)
+    for (final eventName in selectedEvents.keys) {
+      final data = selectedEvents[eventName]!;
+      final trimmedDate = data.date?.trim();
+      if (trimmedDate != null && trimmedDate.isNotEmpty) {
+        buffer.writeln('*$eventName - $trimmedDate*');
+      } else {
+        buffer.writeln('*$eventName*');
       }
+      for (final service in serviceList) {
+        if (data.services.contains(service)) {
+          buffer.writeln('- $service');
+        }
+      }
+      buffer.writeln();
     }
 
+    // Deliverables in SELECTION ORDER (List preserves insertion order)
     buffer.writeln('*Deliveries:*');
-    int count = 1;
-    for (var deliverable in defaultDeliverables) {
-      if (selectedDeliverables.contains(deliverable)) {
-        buffer.writeln('$count. $deliverable');
-        count++;
-      }
+    for (int i = 0; i < selectedDeliverables.length; i++) {
+      buffer.writeln('${i + 1}. ${selectedDeliverables[i]}');
     }
     buffer.writeln();
 
@@ -134,18 +140,20 @@ class QuotationProvider with ChangeNotifier {
     buffer.writeln('*Team Story Book by CLC*');
     buffer.writeln();
     buffer.writeln('*Note:*');
-    buffer.writeln('1. Any Event or Outdoor Shoot Outside Visakhapatnam Client has to provide Travel and Accommodation');
+    buffer.writeln(
+        '1. Any Event or Outdoor Shoot Outside Visakhapatnam Client has to provide Travel and Accommodation');
     buffer.writeln();
     buffer.writeln('*FOR FURTHER DETAILS*');
     buffer.writeln('CONTACT US - +917013328284');
     buffer.writeln();
-    buffer.writeln('InstagramID-https://www.instagram.com/thestorybookbyclc?igsh=N3hheHI5dWoyOXRy');
-    buffer.writeln();
-    buffer.writeln('Website-thestorybookbyclc.smugmug.com');
+    buffer.writeln(
+        'InstagramID-https://www.instagram.com/thestorybookbyclc?igsh=N3hheHI5dWoyOXRy');
+    // SmugMug link removed per v1.2
 
     return buffer.toString();
   }
 
+  // ── Save / Update ──────────────────────────────────────────────
   Future<void> saveQuotation({int? id}) async {
     final db = await DatabaseHelper.instance.database;
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -162,45 +170,54 @@ class QuotationProvider with ChangeNotifier {
       qId = id;
       await db.update(
         'quotations',
-        {
-          'client_name': clientName,
-          'total_amount': totalAmount,
-          'updated_at': now,
-        },
+        {'client_name': clientName, 'total_amount': totalAmount, 'updated_at': now},
         where: 'id = ?',
         whereArgs: [id],
       );
+      // Cascade delete via FK; we re-insert fresh
       await db.delete('quotation_events', where: 'quotation_id = ?', whereArgs: [id]);
       await db.delete('quotation_deliverables', where: 'quotation_id = ?', whereArgs: [id]);
     }
 
+    // Save events in SELECTION ORDER
     int eventOrder = 0;
-    for (var eventName in eventList) {
-      if (selectedEvents.containsKey(eventName)) {
-        final data = selectedEvents[eventName]!;
-        final eventId = await db.insert('quotation_events', {
-          'quotation_id': qId,
-          'event_name': eventName,
-          'event_date': data.date,
-          'display_order': eventOrder++,
+    for (final eventName in selectedEvents.keys) {
+      final data = selectedEvents[eventName]!;
+      final eventId = await db.insert('quotation_events', {
+        'quotation_id': qId,
+        'event_name': eventName,
+        'event_date': data.date,
+        'display_order': eventOrder++,
+      });
+      for (final service in data.services) {
+        await db.insert('event_services', {
+          'event_id': eventId,
+          'service_name': service,
         });
-        for (var service in data.services) {
-          await db.insert('event_services', {
-            'event_id': eventId,
-            'service_name': service,
-          });
-        }
       }
     }
 
-    int dOrder = 0;
-    for (var dName in defaultDeliverables) {
+    // Save selected deliverables in SELECTION ORDER (lowest display_order)
+    for (int i = 0; i < selectedDeliverables.length; i++) {
       await db.insert('quotation_deliverables', {
         'quotation_id': qId,
-        'deliverable_name': dName,
-        'is_selected': selectedDeliverables.contains(dName) ? 1 : 0,
-        'display_order': dOrder++,
+        'deliverable_name': selectedDeliverables[i],
+        'is_selected': 1,
+        'display_order': i,
       });
+    }
+
+    // Save remaining unselected deliverables for completeness
+    int unselOrder = selectedDeliverables.length;
+    for (final dName in allDeliverables) {
+      if (!selectedDeliverables.contains(dName)) {
+        await db.insert('quotation_deliverables', {
+          'quotation_id': qId,
+          'deliverable_name': dName,
+          'is_selected': 0,
+          'display_order': unselOrder++,
+        });
+      }
     }
 
     await loadQuotations();
