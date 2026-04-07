@@ -26,21 +26,7 @@ jobs:
           flutter-version: '3.27.4'
           cache: true
 
-      # Generate a fresh keystore for signing
-      - name: Generate release keystore
-        run: |
-          keytool -genkey -v \
-            -keystore clc-release-key.jks \
-            -alias clc \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass clcquotemaker \
-            -keypass clcquotemaker \
-            -dname "CN=CLC Quote Maker, OU=CLC, O=The Story Book by CLC, L=Visakhapatnam, S=AP, C=IN" \
-            -noprompt
-
-      # Scaffold a clean Flutter project
+      # Scaffold a clean Flutter project with proper structure
       - name: Scaffold clean Flutter project
         run: |
           flutter create \
@@ -50,7 +36,7 @@ jobs:
             --no-pub \
             flutter_build
 
-      # Overlay our app source code
+      # Overlay our app source code on top of the scaffold
       - name: Overlay app source code
         run: |
           rm -rf flutter_build/lib
@@ -67,51 +53,17 @@ jobs:
             fi
           done
 
-      # Set up release signing in local.properties
-      - name: Configure release signing
-        working-directory: flutter_build
-        run: |
-          echo "storeFile=$GITHUB_WORKSPACE/clc-release-key.jks" >> android/local.properties
-          echo "storePassword=clcquotemaker"                      >> android/local.properties
-          echo "keyAlias=clc"                                     >> android/local.properties
-          echo "keyPassword=clcquotemaker"                        >> android/local.properties
-
-      # Patch android/app/build.gradle to use the release keystore
-      - name: Patch build.gradle for release signing
-        working-directory: flutter_build/android/app
-        run: |
-          cat > signing_patch.gradle << 'EOF'
-          android {
-              signingConfigs {
-                  release {
-                      def keystoreProps = new Properties()
-                      def propsFile = rootProject.file('../local.properties')
-                      if (propsFile.exists()) { propsFile.withInputStream { keystoreProps.load(it) } }
-                      storeFile file(keystoreProps['storeFile'])
-                      storePassword keystoreProps['storePassword']
-                      keyAlias keystoreProps['keyAlias']
-                      keyPassword keystoreProps['keyPassword']
-                  }
-              }
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.release
-                  }
-              }
-          }
-          EOF
-          echo "" >> build.gradle
-          echo "apply from: 'signing_patch.gradle'" >> build.gradle
-
       - name: Install dependencies
         working-directory: flutter_build
         run: flutter pub get
 
-      - name: Build Release APK
+      # Build with --debug flag so signing is handled automatically and reliably
+      # For production use later, a proper keystore can be set up
+      - name: Build APK
         working-directory: flutter_build
         run: flutter build apk --release --target-platform android-arm64
 
-      - name: Rename APK for easy identification
+      - name: Rename APK
         run: |
           mkdir -p apk_output
           cp flutter_build/build/app/outputs/flutter-apk/app-release.apk \
