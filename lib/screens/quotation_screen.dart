@@ -252,13 +252,14 @@ class _QuotationScreenState extends State<QuotationScreen> {
                       onChanged: (val) => provider.totalAmount = val,
                     ),
                     const SizedBox(height: 40),
+
+                    // ── Live Preview Panel (Now inline, not sticky) ──
+                    _buildPreviewPanel(context, provider),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
             ),
-
-            // ── Live Preview Panel ────────────────────────────────
-            _buildPreviewPanel(context, provider),
           ],
         ),
       ),
@@ -442,18 +443,16 @@ class _QuotationScreenState extends State<QuotationScreen> {
   Widget _buildPreviewPanel(
       BuildContext context, QuotationProvider provider) {
     return Container(
-      constraints: const BoxConstraints(minHeight: 120),
-      height: MediaQuery.of(context).size.height * 0.35,
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.black12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -476,24 +475,20 @@ class _QuotationScreenState extends State<QuotationScreen> {
                 letterSpacing: 2),
           ),
           const SizedBox(height: 8),
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.black12),
-              ),
-              child: SingleChildScrollView(
-                child: SelectableText(
-                  provider.generateWhatsAppMessage(),
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
-                ),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.black12),
+            ),
+            child: SelectableText(
+              provider.generateWhatsAppMessage(),
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                height: 1.4,
               ),
             ),
           ),

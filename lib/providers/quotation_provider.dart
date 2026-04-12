@@ -115,11 +115,6 @@ class QuotationProvider with ChangeNotifier {
       } else {
         buffer.writeln('*$eventName*');
       }
-      for (final service in serviceList) {
-        if (data.services.contains(service)) {
-          buffer.writeln('- $service');
-        }
-      }
       buffer.writeln();
     }
 
